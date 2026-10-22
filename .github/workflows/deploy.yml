@@ -1,0 +1,39 @@
+name: deploy
+
+on:
+  push:
+    branches: [master]
+
+env:
+  IMAGE: gin-tee:${{ github.sha }}
+  SSH_TARGET: ${{ secrets.NODE_USER }}@${{ secrets.NODE_HOST }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest   
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t "$IMAGE" .
+
+      - name: Write SSH key and known_hosts
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.NODE_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.NODE_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Push image to node
+        run: |
+          docker save "$IMAGE" | ssh -i ~/.ssh/deploy_key "$SSH_TARGET" 'sudo ctr -n k8s.io images import -'
+
+      - name: Apply manifests and roll out
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SSH_TARGET" 'kubectl apply -f -' < k8s.yaml
+          ssh -i ~/.ssh/deploy_key "$SSH_TARGET" "kubectl set image deployment/gin-tee enclave=$IMAGE"
+          ssh -i ~/.ssh/deploy_key "$SSH_TARGET" 'kubectl rollout status deployment/gin-tee --timeout=120s'
+
+      - name: Remove key
+        if: always()
+        run: shred -u ~/.ssh/deploy_key || true

@@ -1,0 +1,24 @@
+neo4j:
+  name: "neo4j-test"
+  
+  # Set initial database password (cannot be "neo4j")
+  password: "mySecretPassword"
+  
+  # Choose your edition ("community" or "enterprise")
+  edition: "community"
+  
+  acceptLicenseAgreement: "yes"
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: null
+      memory: null
+volumes:
+  data:
+    mode: "dynamic"
+    dynamic:
+      storageClassName: "openebs-hostpath"
+      requests:
+        storage: "50Gi"
